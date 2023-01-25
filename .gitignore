@@ -127,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Cromwell execution
+cromwell-extensions/
+cromwell-workflow-logs/
