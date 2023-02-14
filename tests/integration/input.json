@@ -1,1 +1,3 @@
-{"fastqQuantWorkflow.sampleJson": "tests/integration/config/samples.json"}
+{    "fastqQuantWorkflow.sampleJson": "tests/integration/config/samples.json",
+"fastqQuantWorkflow.mirbaseMatureFasta": "/data/umcg-mterpstra/apps/data/mirbase.org/21/mature.fa",
+    "fastqQuantWorkflow.mirbaseHairpinFasta": "/data/umcg-mterpstra/apps/data/mirbase.org/21/hairpin.fa"}

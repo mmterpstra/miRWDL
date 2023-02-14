@@ -4,6 +4,7 @@ import "structs.wdl" as structs
 import "tasks/common.wdl" as common
 import "tasks/trimgalore.wdl" as trimgalore
 import "tasks/fastqc.wdl" as fastqc
+import "tasks/mirdeep2.wdl" as mirdeep
 
 workflow fastqQuantWorkflow {
     input {
@@ -14,7 +15,10 @@ workflow fastqQuantWorkflow {
         #String? trimgalore_mod = "Trim_Galore/0.6.6-GCCcore-9.3.0-Python-3.8.2"
         #String? gatk_mod = "GATK/4.2.6.1-GCCcore-11.2.0-Java-11"
         File sampleJson
+        File mirbaseHairpinFasta
+        File mirbaseMatureFasta
     }
+
     SampleConfig sampleConfig = read_json(sampleJson)
     
     scatter (sample in sampleConfig.samples) {
@@ -28,7 +32,7 @@ workflow fastqQuantWorkflow {
             }
             call fastqc.FastQC as fastqc1 {
             input:
-                inputFastq = getfastq1.link,
+                inputFastq = getfastq1.link
             }
             if (defined(rg.fastq2)) {
                 call common.CreateLink as getfastq2 {
@@ -38,25 +42,24 @@ workflow fastqQuantWorkflow {
                 }
                 call fastqc.FastQC as fastqc2 {
                 input:
-                inputFastq = getfastq2.link,
+                    inputFastq = getfastq2.link
                 }
 
             }
-            #if (defined(rg.fastq2)) {
             call trimgalore.TrimGalore as adaptertrim {
                 input:
                     inputFastq1 = getfastq1.link,
                     inputFastq2 = getfastq2.link,
-                    outputFastq1 = getfastq1.link,
-                    outputFastq2 = getfastq2.link,
+                    outputFastq1 = sample.name + "_" + rg.identifier + "_trim_R1.fastq.gz",
+                    outputFastq2 = sample.name + "_" + rg.identifier + "_trim_R2.fastq.gz",
                     memoryGb = 1
             }
             #}
             #if (!defined(rg.fastq2)) {
-            #    call trimgalore.TrimGalore as adaptertrimPe {
+            #    call trimgalore.TrimGalore as adaptertrimSe {
             #        input:
             #            inputFastq1 = getfastq1.link,
-            #            outputFastq1 = getfastq1.link,
+            #            outputFastq1 = sample.name + "_" + rg.identifier + "_trim_R1.fastq.gz",
             #            memoryGb = 1
             #    }
             #} 
@@ -69,10 +72,25 @@ workflow fastqQuantWorkflow {
 
         call common.CollapseFastq as collapse {
             input:
-                reads = select_first([adaptertrim.fastq1]),
+                reads = adaptertrim.fastq1,
                 outputPrefix = sample.name,
                 threeLetterName = sample.threeLetterName
         }
+
+        call mirdeep.QuantifierSingleSample as quantify {
+             input:
+                inputCollapsedFasta = collapse.outputCollapsedFasta,
+                inputMirbaseMatureFasta = mirbaseMatureFasta,
+                inputMirbaseHairpinFasta = mirbaseHairpinFasta,
+                outputPrefix = sample.name
+        }
         
+    }
+    call mirdeep.MergeQuantifierOutputs as mergeOutputsQuantifier {
+        input:
+                inputLogs = quantify.outLog,
+                inputTsvs = quantify.outTsv,
+                inputCollapsedFasta = collapse.outputCollapsedFasta,
+                outputPrefix = "quantifier_final"
     }
 }

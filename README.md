@@ -1,12 +1,12 @@
 # miRWDL
-miRWDL scalable mirna qualitfication on the wdl wit a default configuration for slurm
+miRWDL scalable mirna quantification on the wdl with a default configuration for slurm
 
 ### Example
 Example how to run at test/test.sh
 
 ### How to install
 
-Intallation requirements 
+Installation requirements 
 
  - Fastqc
  - TrimGalore
@@ -14,4 +14,4 @@ Intallation requirements
  - miRDeep2
     - Bowtie(1)
 
-Installation by easybuild(preferred or by configuring docker images)
+Installation by easybuild (preferred or by configuring docker images)
