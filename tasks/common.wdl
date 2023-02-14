@@ -5,34 +5,40 @@ task CollapseFastq {
         Array[File] reads
         #String dockerImage = "quay.io/biocontainers/cutadapt:4.2--py310h1425a21_0"
         String outputPrefix
-        String? threeLetterName 
-        Int memoryGb = 1
+        String? threeLetterName = "AAA"
+        Int memoryGb = 8
+        Boolean nextflex = false
         Int timeMinutes = 10 + ceil(size(reads, "GiB") * 40 )
         String? dockerImage
         #String dockerImage = "quay.io/biocontainers/coreutils" #idk needs perl 5 and coreutils
     }
+
+    String nextFlexCmd = if (nextflex) then " cut -c5- |  " else ""
+    #Python oneliner assumes a stream of sequences delimited by newline prints the stuff if not newline 
+
     command {
         set -e -o pipefail
         mkdir -p "$(dirname ${outputPrefix})"
         zcat ${sep=" " reads} | \
-        perl -wne 'chomp; print $_."\n" if($.%4==2)' | \
-        sort --temporary-directory="$(dirname ${outputPrefix})" | \
+        python3 -c "import sys; [ print(line) if count % 4 == 1 else None for count,line in enumerate(sys.stdin)]" | \
+        ${nextFlexCmd} \
+        sort --temporary-directory="$(dirname ${outputPrefix})" --buffer-size=6G | \
         uniq -c | \
-        python -c "import sys;[sys.stdout.write('>'+sys.argv[1]+'_'+str(count)+'_x'+'\n'.join(line.split(' ')[-2:])) for count,line in enumerate(sys.stdin)]" AAA > \
+        python3 -c "import sys;[None if(line.split(' ')[-1] == '\n') else sys.stdout.write('>'+sys.argv[1]+'_'+str(count)+'_x'+'\n'.join(line.split(' ')[-2:])) for count,line in enumerate(sys.stdin)]" ${threeLetterName} > \
          "${outputPrefix}"".md.fa"
     }
     output {
         File outputCollapsedFasta = outputPrefix + ".md.fa"
     }
-        runtime {
+    runtime {
         memory: memoryGb*1024
         timeMinutes: timeMinutes
-        #ocker: dockerImage
+        #docker: dockerImage
     }
 
 }
 
-
+#
 #Borrowed stuff below here
 
 #https://github.com/biowdl/tasks/blob/c92755e510723da731ba92637c41e58c8490b5fc/common.wdl#L66
@@ -91,7 +97,7 @@ task CreateLink {
 
     command {
         echo $PWD
-        ln -sf "$(realpath ~{inputFile})"  "~{outputPath}"
+        ln -sf "~{inputFile}"  "~{outputPath}"
     }
 
     output {
