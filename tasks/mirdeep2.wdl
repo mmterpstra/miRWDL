@@ -6,7 +6,6 @@ task QuantifierSingleSample {
         File inputMirbaseHairpinFasta
         #File inputSampleConfig
         File inputMirbaseMatureFasta
-        String speciesCode = 'hsa'
         String outputPrefix = 'quantifier'
         Int? memoryGb = 1 + ceil(size(inputCollapsedFasta, "G"))*1
 	    String mirdeepModule  = "mirdeep2/0.1.3-GCC-10.2.0-Perl-5.32.0"
@@ -22,7 +21,6 @@ task QuantifierSingleSample {
             -m "${inputMirbaseMatureFasta}" \
             -r "${inputCollapsedFasta}" \
             -y "${outputPrefix}" \
-            -t "${speciesCode}" \
             -P -W 2> "quantifier.stderr"
         
         cat quantifier.stderr > /dev/stderr
@@ -235,3 +233,39 @@ task Quantifier {
 }
 
 #task to download mirbase?
+
+task ExtractMiRNAs {
+    input {
+        File inputMirbaseHairpinFasta
+        File inputMirbaseMatureFasta
+        String extractedHairpinPrefix
+        String extractedMaturePrefix
+        String speciesCode = 'hsa'
+        Int? memoryGb = 1 
+        #+ ceil(size(inputCollapsedFasta, "G"))*1
+	    String mirdeepModule  = "mirdeep2/0.1.3-GCC-10.2.0-Perl-5.32.0"
+        Int timeMinutes = 15
+        # + ceil(size(inputCollapsedFasta, "G")) * 10
+    }
+
+    command <<<
+        set -e
+        module load ~{mirdeepModule}
+        
+        extract_miRNAs.pl "~{inputMirbaseHairpinFasta}" "~{speciesCode}" > "~{extractedHairpinPrefix}.fa"
+        extract_miRNAs.pl "~{inputMirbaseMatureFasta}" "~{speciesCode}" mature > "~{extractedMaturePrefix}.fa"
+        
+
+        
+    >>>
+
+    output {
+        File outHairpinFa = extractedHairpinPrefix + ".fa"
+        File outMatureFa = extractedMaturePrefix + ".fa"
+    }
+
+    runtime {
+        memory: select_first([memoryGb * 1024,1024])
+        timeMinutes: timeMinutes
+    }
+}

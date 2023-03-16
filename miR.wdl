@@ -20,11 +20,20 @@ workflow fastqQuantWorkflow {
     }
 
     SampleConfig sampleConfig = read_json(sampleJson)
-    
+
+    call mirdeep.ExtractMiRNAs as extractMiRNAs {
+        input:
+            inputMirbaseMatureFasta = mirbaseMatureFasta,
+            inputMirbaseHairpinFasta = mirbaseHairpinFasta,
+            speciesCode = "hsa,ebv,hcmv,jcv",
+            extractedHairpinPrefix = "subset_mature",
+            extractedMaturePrefix = "subset_hairpin"
+    }
     scatter (sample in sampleConfig.samples) {
         #Array[ReadGroup] readgroups = sample.readgroups
         #Array[File] fastqList = flatten(readgroups["fastq1"])
         scatter (rg in sample.readgroups) {
+            #linking for uniform filenames
             call common.CreateLink as getfastq1 {
             input:
                 inputFile = rg.fastq1,
@@ -46,6 +55,8 @@ workflow fastqQuantWorkflow {
                 }
 
             }
+
+            #adapter trim these are assumend to be illumina adapters
             call trimgalore.TrimGalore as adaptertrim {
                 input:
                     inputFastq1 = getfastq1.link,
@@ -69,19 +80,22 @@ workflow fastqQuantWorkflow {
         #        fileList=,
         #        combinedFilePath=sample.name + ".fastq.gz"
         #}
-
+        
+        # Format conversion to collapsed mirdeep format for quantifier
         call common.CollapseFastq as collapse {
             input:
                 reads = adaptertrim.fastq1,
+                nextflex = true,
                 outputPrefix = sample.name,
                 threeLetterName = sample.threeLetterName
         }
 
+        # Quantify against entire mirbase set
         call mirdeep.QuantifierSingleSample as quantify {
              input:
                 inputCollapsedFasta = collapse.outputCollapsedFasta,
-                inputMirbaseMatureFasta = mirbaseMatureFasta,
-                inputMirbaseHairpinFasta = mirbaseHairpinFasta,
+                inputMirbaseMatureFasta = extractMiRNAs.outHairpinFa,
+                inputMirbaseHairpinFasta = extractMiRNAs.outMatureFa,
                 outputPrefix = sample.name
         }
         
