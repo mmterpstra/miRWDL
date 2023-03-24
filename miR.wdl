@@ -5,6 +5,8 @@ import "tasks/common.wdl" as common
 import "tasks/trimgalore.wdl" as trimgalore
 import "tasks/fastqc.wdl" as fastqc
 import "tasks/mirdeep2.wdl" as mirdeep
+import "tasks/multiqc.wdl" as multiqc
+
 
 workflow fastqQuantWorkflow {
     input {
@@ -37,7 +39,7 @@ workflow fastqQuantWorkflow {
             call common.CreateLink as getfastq1 {
             input:
                 inputFile = rg.fastq1,
-                outputPath = sample.name + "_" + rg.identifier + "_R1.fastq.gz"
+                outputPath = sample.name + "_" + rg.flowcell + "_" + rg.identifier + "_R1.fastq.gz"
             }
             call fastqc.FastQC as fastqc1 {
             input:
@@ -47,7 +49,7 @@ workflow fastqQuantWorkflow {
                 call common.CreateLink as getfastq2 {
                 input:
                     inputFile = select_first([rg.fastq2]),
-                    outputPath = sample.name + "_" + rg.identifier + "_R2.fastq.gz"
+                    outputPath = sample.name + "_" + rg.flowcell + "_" + rg.identifier + "_R2.fastq.gz"
                 }
                 call fastqc.FastQC as fastqc2 {
                 input:
@@ -94,8 +96,8 @@ workflow fastqQuantWorkflow {
         call mirdeep.QuantifierSingleSample as quantify {
              input:
                 inputCollapsedFasta = collapse.outputCollapsedFasta,
-                inputMirbaseMatureFasta = extractMiRNAs.outHairpinFa,
-                inputMirbaseHairpinFasta = extractMiRNAs.outMatureFa,
+                inputMatureFasta = extractMiRNAs.outMatureFa,
+                inputHairpinFasta = extractMiRNAs.outHairpinFa,
                 outputPrefix = sample.name
         }
         
@@ -106,5 +108,10 @@ workflow fastqQuantWorkflow {
                 inputTsvs = quantify.outTsv,
                 inputCollapsedFasta = collapse.outputCollapsedFasta,
                 outputPrefix = "quantifier_final"
+    }
+    
+    call multiqc.MultiQC as multiQC {
+        input:
+            files = flatten(flatten([fastqc1.outZip,adaptertrim.fastq1Log]))
     }
 }
