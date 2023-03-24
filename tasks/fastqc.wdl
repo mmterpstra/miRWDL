@@ -5,7 +5,7 @@ task FastQC {
         File inputFastq
         Int? memoryGb = "1"
 	    String? fastqcModule  = "FastQC/0.11.9-Java-11"
-        Int timeMinutes = 1 + ceil(size(inputFastq, "G")) * 10
+        Int timeMinutes = 1 + ceil(size(inputFastq, "G")) * 20
     }
 
     command {

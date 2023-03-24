@@ -3,13 +3,14 @@ version 1.0
 task QuantifierSingleSample {
     input {
         File inputCollapsedFasta
-        File inputMirbaseHairpinFasta
+        File inputHairpinFasta
         #File inputSampleConfig
-        File inputMirbaseMatureFasta
+        File inputMatureFasta
         String outputPrefix = 'quantifier'
         Int? memoryGb = 1 + ceil(size(inputCollapsedFasta, "G"))*1
 	    String mirdeepModule  = "mirdeep2/0.1.3-GCC-10.2.0-Perl-5.32.0"
-        Int timeMinutes = 1 + ceil(size(inputCollapsedFasta, "G")) * 10
+        #the files below rarely exceed 1-2gb 
+        Int timeMinutes = 1 + ceil(size(inputHairpinFasta, "G")) * 30 + ceil(size(inputCollapsedFasta, "G")) * 90
     }
 
     command {
@@ -17,8 +18,8 @@ task QuantifierSingleSample {
         module load ${mirdeepModule}
         
         quantifier.pl \
-            -p "${inputMirbaseHairpinFasta}" \
-            -m "${inputMirbaseMatureFasta}" \
+            -p "${inputHairpinFasta}" \
+            -m "${inputMatureFasta}" \
             -r "${inputCollapsedFasta}" \
             -y "${outputPrefix}" \
             -P -W 2> "quantifier.stderr"
