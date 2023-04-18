@@ -15,18 +15,19 @@ task CollapseFastq {
     #this onliner trims the first and last four bases from the sequences
     String nextFlexCmd = if (nextflex) then " python3 -c \"import sys;[sys.stdout.write(line.rstrip()[4:-4]+'\\n') for count,line in enumerate(sys.stdin)]\" |  " else ""
 
-    #Python oneliner1 only prints the sequence string from the fastq. oneliner2 assumes a stream of sequences delimited by newline prints the stuff if not newline 
-    command {
+    #Python oneliner1 only prints the sequence string from the fastq.
+    #Python oneliner2 assumes a stream of sequences delimited by newline prints the stuff if not newline 
+    command <<<
         set -e -o pipefail
-        mkdir -p "$(dirname ${outputPrefix})"
-        zcat ${sep=" " reads} | \
+        mkdir -p "$(dirname ~{outputPrefix})"
+        zcat ~{sep=" " reads} | \
         python3 -c "import sys; [ print(line) if count % 4 == 1 else None for count,line in enumerate(sys.stdin)]" | \
-        ${nextFlexCmd} \
-        sort --temporary-directory="$(dirname ${outputPrefix})" --buffer-size=4G | \
+        ~{nextFlexCmd} \
+        sort --temporary-directory="$(dirname ~{outputPrefix})" --buffer-size=4G | \
         uniq -c | \
-        python3 -c "import sys;[None if(line.split(' ')[-1] == '\n') else sys.stdout.write('>'+sys.argv[1]+'_'+str(count)+'_x'+'\n'.join(line.split(' ')[-2:])) for count,line in enumerate(sys.stdin)]" ${threeLetterName} > \
-         "${outputPrefix}"".md.fa"
-    }
+        python3 -c "import sys;[None if(line.split(' ')[-1] == '\n') else sys.stdout.write('>'+sys.argv[1]+'_'+str(count)+'_x'+'\n'.join(line.split(' ')[-2:])) for count,line in enumerate(sys.stdin)]" ~{threeLetterName} > \
+         "~{outputPrefix}"".md.fa"
+    >>>
     output {
         File outputCollapsedFasta = outputPrefix + ".md.fa"
     }

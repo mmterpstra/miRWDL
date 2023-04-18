@@ -11,8 +11,7 @@ task TrimGalore {
         #File? fastq_input_umi
         #String samplename
         #String identifier
-	    String trimgaloreModule = "Trim_Galore/0.6.6-GCCcore-9.3.0-Python-3.8.2"
-        #String memory = 
+	    String trimgaloreModule
     }
     command {
         set -e 

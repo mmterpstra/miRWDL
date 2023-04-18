@@ -8,14 +8,14 @@ task QuantifierSingleSample {
         File inputMatureFasta
         String outputPrefix = 'quantifier'
         Int? memoryGb = 1 + ceil(size(inputCollapsedFasta, "G"))*1
-	    String mirdeepModule  = "mirdeep2/0.1.3-GCC-10.2.0-Perl-5.32.0"
+	    String mirdeepModule
         #the files below rarely exceed 1-2gb 
         Int timeMinutes = 1 + ceil(size(inputHairpinFasta, "G")) * 30 + ceil(size(inputCollapsedFasta, "G")) * 90
     }
 
     command {
         set -e
-        module load ${mirdeepModule}
+        module --ignore-cache load ${mirdeepModule}
         
         quantifier.pl \
             -p "${inputHairpinFasta}" \
@@ -24,6 +24,10 @@ task QuantifierSingleSample {
             -y "${outputPrefix}" \
             -P -W 2> "quantifier.stderr"
         
+        if [ -e "pdfs_${outputPrefix}" ]; then 
+            zip -ru "pdfs_${outputPrefix}.zip" "pdfs_${outputPrefix}"
+        fi
+
         cat quantifier.stderr > /dev/stderr
         
         #the stderr of quantifier is also the qc log for mapping results... so I catch the qc part by omitting the progress/warning messages
@@ -34,7 +38,7 @@ task QuantifierSingleSample {
     output {
         File outTsv = "miRNAs_expressed_all_samples_" + basename(outputPrefix, ".tsv") + ".csv"
         File outHtml = "expression_" + basename(outputPrefix, ".tsv") + ".html"
-        File? outPdfs = "pdfs_" + basename(outputPrefix, ".tsv")
+        File? outPdfs = "pdfs_" + basename(outputPrefix, ".tsv") + ".zip"
         File outLog = "quantifier_" + basename(outputPrefix, ".tsv") + ".log"
     }
 
@@ -61,38 +65,48 @@ task MergeQuantifierOutputs {
         
         touch ~{outputPrefix}.tsv
         for i in  ~{sep=" " inputTsvs}; do
+            SAMPLENAME="$(echo $i | perl -wpe 's/^.*\/miRNAs_expressed_all_samples_|\.csv$//g')"
             if [ ! -s ~{outputPrefix}.tsv ]; then 
-                (echo -e "test\t\t";cut -f 1-3 $i )>> ~{outputPrefix}.tsv
+                (cut -f 1-3 $i )>> ~{outputPrefix}.tsv
             fi
-            paste ~{outputPrefix}.tsv <(echo -e $(basename $i)"\t"; cut -f 5,6  $i )> ~{outputPrefix}.tmp.csv
+            paste ~{outputPrefix}.tsv <(echo -e $SAMPLENAME"\t"$SAMPLENAME"(norm)"; cut -f 5,6  $i | tail -n+2)> ~{outputPrefix}.tmp.csv
             mv  ~{outputPrefix}.tmp.csv ~{outputPrefix}.tsv
         done
 
         (for i in  ~{sep=" " inputCollapsedFasta}; do 
+            #note on @h = split("_x",$_):
+            #mirdeep collapsed fasta format header assumed
+            #(>\w[\w\d]{2})_(\d+)_x(\d+) $1: 3 letter sample descriptor. $2: collapsed readid. $3: collapsed read count.
             perl  -wne '
                 BEGIN{our %lencounts;
                     our @h;
                     our @lens=(1..151)};
-                    if($.%2==1){ 
-                        @h = split("_x",$_);
+                if($.%2==1){ 
+                    @h = split("_x",$_);
+                }else{
+                    chomp;
+                    my $count = 1;
+                    $count = $h[1] if(defined($h[1]));
+                    if(defined($lencounts{length($_)})){
+                        $lencounts{length($_)}+=$count;
                     }else{
-                        chomp;
-                        $lencounts{length($_)}+=$h[1];
+                        $lencounts{length($_)}=$count;
                     }
-                    END{
-                        #print $ARGV."\n";
-                        print join("\t",("File",@lens))."\n";
-                        my @counts;
-                        for my $key (@lens){
-                            if(defined($lencounts{$key})){
-                                push(@counts,$lencounts{$key});
-                            }else{
-                                push(@counts,0)
-                            }
-                        };
-                        print join("\t",($ARGV,@counts))."\n";
-                    }' $i 
-        done) > ~{outputPrefix}".collapsedcounts.log"
+                }
+                END{
+                    #print $ARGV."\n";
+                    print join(",",("File",@lens))."\n";
+                    my @counts;
+                    for my $key (@lens){
+                        if(defined($lencounts{$key})){
+                            push(@counts,$lencounts{$key});
+                        }else{
+                            push(@counts,0)
+                        }
+                    };
+                    print join("\t",($ARGV,@counts))."\n";
+                }' $i 
+        done) | perl -wpe 's/^.*\/call-mergeOutputsQuantifier\/inputs\/[-\d]+\///g' > ~{outputPrefix}".collapsedcounts.log"
 
         (
 
@@ -128,9 +142,9 @@ task MergeQuantifierOutputs {
 
 END
             echo ""
-            echo "### Read length counts"
+            echo "### Read length counts post trim"
             echo ""
-            echo "Per sample counts of an observed read length."
+            echo "Readcounts for each read length after trimming for each sample. These should show a peak around miRNA length (22 bases)."
             
             perl -wpe 'chomp;
                         $_="| ".$_." |\n";
@@ -147,22 +161,31 @@ END
             echo ""
             echo "### Quantifier mapping yield"
             echo ""
-            echo "Per sample metrics of reads mapped against mirbase."
+            echo "Per sample metrics of reads mapped against mirbase. Total reads is reads remaining after adapter trim and after import which discards N containing sequences"
             echo ""
 
             (   for i in ~{sep=" " inputLogs}; do
                     echo ""
-                    head -n 20 $i | \
+                    #samplename
+                    SAMPLENAME=$(head -n 20 $i | \
                         grep 'Expressed miRNAs are written to expression_analyses/expression_analyses' | \
-                        perl -wpe 's!Expressed miRNAs are written to expression_analyses\/expression_analyses_|/miRNA_expressed.csv!!g'
+                        perl -wpe 's!Expressed miRNAs are written to expression_analyses\/expression_analyses_|/miRNA_expressed.csv!!g;chomp')
                     echo ""
-                    head -n 20  $i | \
-                        grep '#desc' | \
-                        perl -wpe 'chomp; s/^#|$|\t/ | /g;$_.="\n";s/^ +//g;print $_; s/[a-z%]/-/g;'
-                    head -n 20  $i | \
+                    if [ ! -e "~{outputPrefix}.md.header" ] ;then
+                        #header and (default) markdown table alignment
+                        head -n 20  $i | \
+                            grep '#desc' | \
+                            perl -wpe 'chomp; s/^#|$|\t/ | /g;$_.="\n";s/^ +//g;print $_; s/[a-z%]/-/g;'
+                        touch "~{outputPrefix}.md.header"
+                    fi
+
+                    #sample info
+                    (echo -en "$SAMPLENAME\t"
+                        head -n 20  $i | \
                         grep '#desc' -A 2 | \
                         tail -n 1 | \
-                        perl -wpe 'chomp; s/^|$|\t|:/ | /g;s/ +/ /g;s/^ +//g;$_.="\n";'
+                        cut -f 2- -d\: ) | \
+                    perl -wpe 'chomp; s/^|$|\t|:/ | /g;s/ +/ /g;s/^ +//g;$_.="\n";'
                 done
             ) | column -t -s\ 
         )>>  ~{outputPrefix}".md"
@@ -196,7 +219,7 @@ task Quantifier {
 
     command <<<
         set -e
-        module load ~{mirdeepModule}
+        module --ignore-cache load ~{mirdeepModule}
         cat ~{sep=" " inputCollapsedFasta} > "~{outputPrefix}.all_reads.md_collapse.fa"
         #this probably works fine for the first 2600 or so samples 
         paste  <(ls ~{sep=" " inputCollapsedFasta}) \
@@ -219,8 +242,6 @@ task Quantifier {
     >>>
 
     output {
-        #String fastqcDir =  basename(inputCollapsedFasta, ".fastq.gz")
-        #ile out_html1 = basename(inputCollapsedFasta, ".fastq.gz") + "_fastqc.html"
         File outCsv = "miRNAs_expressed_all_samples_" + basename(outputPrefix, ".tsv") + ".csv"
         File outHtml = "expression_" + basename(outputPrefix, ".tsv") + ".html"
         File? outPdfs = "pdfs_" + basename(outputPrefix, ".tsv")
@@ -244,14 +265,14 @@ task ExtractMiRNAs {
         String speciesCode = 'hsa'
         Int? memoryGb = 1 
         #+ ceil(size(inputCollapsedFasta, "G"))*1
-	    String mirdeepModule  = "mirdeep2/0.1.3-GCC-10.2.0-Perl-5.32.0"
+	    String mirdeepModule
         Int timeMinutes = 15
         # + ceil(size(inputCollapsedFasta, "G")) * 10
     }
 
     command <<<
         set -e
-        module load ~{mirdeepModule}
+        module --ignore-cache load ~{mirdeepModule}
         
         extract_miRNAs.pl "~{inputMirbaseHairpinFasta}" "~{speciesCode}" > "~{extractedHairpinPrefix}.fa"
         extract_miRNAs.pl "~{inputMirbaseMatureFasta}" "~{speciesCode}" mature > "~{extractedMaturePrefix}.fa"
