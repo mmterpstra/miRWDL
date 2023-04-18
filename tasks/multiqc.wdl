@@ -4,16 +4,23 @@ task MultiQC {
     input {
         #should be files or dirs
         Array[File] files
+        Array[String] optionalFiles
         #Scales badly
         Int? memoryGb = "4"
-	    String? multiQCModule  = "MultiQC/1.9-foss-2020a-Python-3.8.2"
+	    String multiqcModule
         Int timeMinutes = 50
     }
 
-    command {
+    command <<<
         set -e
-        module load ${multiQCModule} && multiqc --force --file-list ${write_lines(files)}
-    }
+        cat ~{write_lines(files)} > filelist.txt
+        (while read FILE; do 
+            if [ -e $FILE ]; then
+                echo "$FILE"
+            fi
+        done <  ~{write_lines(optionalFiles)}) >> ./filelist.txt
+        module load ~{multiqcModule} && multiqc --force --file-list ./filelist.txt
+    >>>
 
     output {
         File dir =  "multiqc_data"

@@ -10,12 +10,10 @@ import "tasks/multiqc.wdl" as multiqc
 
 workflow fastqQuantWorkflow {
     input {
-        #File fastq_input
-        #Int mem_gb
-	    #String? fastqc_mod = "FastQC/0.11.9-Java-11"
-        #Int? fastqc_mem = 1
-        #String? trimgalore_mod = "Trim_Galore/0.6.6-GCCcore-9.3.0-Python-3.8.2"
-        #String? gatk_mod = "GATK/4.2.6.1-GCCcore-11.2.0-Java-11"
+	    String fastqcModule = "FastQC/0.11.9-Java-11"
+        String trimgaloreModule = "Trim_Galore/0.6.6-GCCcore-9.3.0-Python-3.8.2"
+        String mirdeepModule = "miRDeep2/0.1.1-foss-2018b"
+        String multiqcModule = "multiqc/1.12-GCCcore-11.3.0"
         File sampleJson
         File mirbaseHairpinFasta
         File mirbaseMatureFasta
@@ -25,11 +23,12 @@ workflow fastqQuantWorkflow {
 
     call mirdeep.ExtractMiRNAs as extractMiRNAs {
         input:
+            mirdeepModule = mirdeepModule,
             inputMirbaseMatureFasta = mirbaseMatureFasta,
             inputMirbaseHairpinFasta = mirbaseHairpinFasta,
             speciesCode = "hsa,ebv,hcmv,jcv",
-            extractedHairpinPrefix = "subset_mature",
-            extractedMaturePrefix = "subset_hairpin"
+            extractedHairpinPrefix = "subset_hairpin",
+            extractedMaturePrefix = "subset_mature"
     }
     scatter (sample in sampleConfig.samples) {
         #Array[ReadGroup] readgroups = sample.readgroups
@@ -43,7 +42,8 @@ workflow fastqQuantWorkflow {
             }
             call fastqc.FastQC as fastqc1 {
             input:
-                inputFastq = getfastq1.link
+                inputFastq = getfastq1.link,
+                fastqcModule = fastqcModule
             }
             if (defined(rg.fastq2)) {
                 call common.CreateLink as getfastq2 {
@@ -53,7 +53,8 @@ workflow fastqQuantWorkflow {
                 }
                 call fastqc.FastQC as fastqc2 {
                 input:
-                    inputFastq = getfastq2.link
+                    inputFastq = getfastq2.link,
+                    fastqcModule = fastqcModule
                 }
 
             }
@@ -65,7 +66,8 @@ workflow fastqQuantWorkflow {
                     inputFastq2 = getfastq2.link,
                     outputFastq1 = sample.name + "_" + rg.identifier + "_trim_R1.fastq.gz",
                     outputFastq2 = sample.name + "_" + rg.identifier + "_trim_R2.fastq.gz",
-                    memoryGb = 1
+                    memoryGb = 1,
+                    trimgaloreModule = trimgaloreModule
             }
             #}
             #if (!defined(rg.fastq2)) {
@@ -82,7 +84,20 @@ workflow fastqQuantWorkflow {
         #        fileList=,
         #        combinedFilePath=sample.name + ".fastq.gz"
         #}
-        
+        call fastqc.FastQCSample as fastqcSample1 {
+            input:
+                fastqcModule = fastqcModule,
+                inputFastqGzs = getfastq1.link,
+                outputPrefix = sample.name + "_R1",
+        }
+        if (defined(getfastq2.link)) {
+            call fastqc.FastQCSample as fastqcSample2 {
+            input:
+                fastqcModule = fastqcModule,
+                inputFastqGzs = select_all(getfastq2.link),
+                outputPrefix = sample.name + "_R2",
+            }
+        }
         # Format conversion to collapsed mirdeep format for quantifier
         call common.CollapseFastq as collapse {
             input:
@@ -95,6 +110,7 @@ workflow fastqQuantWorkflow {
         # Quantify against entire mirbase set
         call mirdeep.QuantifierSingleSample as quantify {
              input:
+                mirdeepModule = mirdeepModule,
                 inputCollapsedFasta = collapse.outputCollapsedFasta,
                 inputMatureFasta = extractMiRNAs.outMatureFa,
                 inputHairpinFasta = extractMiRNAs.outHairpinFa,
@@ -109,9 +125,19 @@ workflow fastqQuantWorkflow {
                 inputCollapsedFasta = collapse.outputCollapsedFasta,
                 outputPrefix = "quantifier_final"
     }
-    
+    #insert select_all(fastqcSample2.outZip),select_all(flatten(fastqc2.outZip)) when pe
+    Array[File] files = flatten(flatten([fastqc1.outZip,adaptertrim.fastq1Log,[fastqcSample1.outZip]]))
+    #Array[String?] optionalFiles = ["None"]
+    #if (defined(select_first(fastqc2.outZip))) {
+    #   Array[String] optionalFiles =  select_all(flatten(flatten([fastqc2.outZip,[fastqcSample2.outZip]])))
+    #}
+    #hmm passing variables as a task call will result in different resolution... gettin past the validation step.
+    #Dont ask questions this thing below works for correct paired end data
+    # extra flatten because option only accepts single 
     call multiqc.MultiQC as multiQC {
         input:
-            files = flatten(flatten([fastqc1.outZip,adaptertrim.fastq1Log]))
+            multiqcModule = multiqcModule,
+            files = files,
+            optionalFiles = select_all(flatten(flatten([fastqc2.outZip,[fastqcSample2.outZip]])))
     }
 }
