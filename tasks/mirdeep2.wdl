@@ -7,7 +7,7 @@ task QuantifierSingleSample {
         #File inputSampleConfig
         File inputMatureFasta
         String outputPrefix = 'quantifier'
-        Int? memoryGb = 1 + ceil(size(inputCollapsedFasta, "G"))*1
+        Int? memoryGb = 2 + ceil(size(inputCollapsedFasta, "G"))*1
 	    String mirdeepModule
         #the files below rarely exceed 1-2gb 
         Int timeMinutes = 1 + ceil(size(inputHairpinFasta, "G")) * 30 + ceil(size(inputCollapsedFasta, "G")) * 90
@@ -15,8 +15,13 @@ task QuantifierSingleSample {
 
     command {
         set -e
-        module --ignore-cache load ${mirdeepModule}
         
+        module --ignore-cache load ${mirdeepModule}
+        mkdir -p "expression_analyses/expression_analyses_${outputPrefix}_test/"
+        #this command below breaks on execution nodes idk why
+        (cd "expression_analyses/expression_analyses_${outputPrefix}_test/" && python3 $EBROOTBOWTIE/bin/bowtie-build ${inputHairpinFasta} ./miRNA_precursor)
+        (ldd   $(which bowtie-build-l); ldd   $(which bowtie-build-s))
+        module --ignore-cache load ${mirdeepModule}
         quantifier.pl \
             -p "${inputHairpinFasta}" \
             -m "${inputMatureFasta}" \

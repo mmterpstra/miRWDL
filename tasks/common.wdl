@@ -98,7 +98,7 @@ task CreateLink {
 
     command {
         echo $PWD
-        ln -sf "~{inputFile}"  "~{outputPath}"
+        ln -sf "$(realpath "~{inputFile}")"  "~{outputPath}"
     }
 
     output {
