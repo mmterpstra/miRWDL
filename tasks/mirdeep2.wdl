@@ -109,7 +109,7 @@ task MergeQuantifierOutputs {
                             push(@counts,0)
                         }
                     };
-                    print join("\t",($ARGV,@counts))."\n";
+                    print join(",",(chomp($ARGV),@counts))."\n";
                 }' $i 
         done) | perl -wpe 's/^.*\/call-mergeOutputsQuantifier\/inputs\/[-\d]+\///g' > ~{outputPrefix}".collapsedcounts.log"
 
@@ -151,14 +151,20 @@ END
             echo ""
             echo "Readcounts for each read length after trimming for each sample. These should show a peak around miRNA length (22 bases)."
             
-            perl -wpe 'chomp;
+            perl -wne 'chomp;
                         $_="| ".$_." |\n";
-                        s/\t/ | /g;
+                        s/,/ | /g;
                         if($. == 1){
                             print $_ ;
                             s/\| .*\/\| /|/g;
                             s/\.md\.fa//g;
-                            s/[\w\\\/\.]+/---/g
+                            s/[\w\\\/\.]+/---/g;
+                            print $_
+
+                        }else{
+                            if( not(m/\| File\s*\|/) ){
+                                print $_;
+                            }
                         }' ~{outputPrefix}".collapsedcounts.log" | column -t -s\ 
         )>  ~{outputPrefix}".md"
         
