@@ -1,3 +1,9 @@
-{    "fastqQuantWorkflow.sampleJson": "tests/integration/config/samples.json",
-"fastqQuantWorkflow.mirbaseMatureFasta": "/data/umcg-mterpstra/apps/data/mirbase.org/21/mature.fa",
-    "fastqQuantWorkflow.mirbaseHairpinFasta": "/data/umcg-mterpstra/apps/data/mirbase.org/21/hairpin.fa"}
+{
+    "fastqQuantWorkflow.sampleJson": "./tests/integration/config/samples.json",
+    "fastqQuantWorkflow.mirbaseMatureFasta": "./data/mirbase.org/21/mature.fa",
+    "fastqQuantWorkflow.mirbaseHairpinFasta": "./data/mirbase.org/21/hairpin.fa",
+    "fastqQuantWorkflow.fastqcModule": "FastQC/0.11.9-Java-11",
+    "fastqQuantWorkflow.trimgaloreModule": "Trim_Galore/0.6.10-GCCcore-11.3.0",
+    "fastqQuantWorkflow.mirdeepModule": "miRDeep2/0.1.3-foss-2022a",
+    "fastqQuantWorkflow.multiqcModule": "MultiQC/1.14-foss-2022a"
+}

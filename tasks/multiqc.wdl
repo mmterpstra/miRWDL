@@ -6,7 +6,7 @@ task MultiQC {
         Array[File] files
         Array[String] optionalFiles
         #Scales badly
-        Int? memoryGb = "4"
+        Int? memoryGb = "8"
 	    String multiqcModule
         Int timeMinutes = 50
     }

@@ -7,7 +7,7 @@ task QuantifierSingleSample {
         #File inputSampleConfig
         File inputMatureFasta
         String outputPrefix = 'quantifier'
-        Int? memoryGb = 1 + ceil(size(inputCollapsedFasta, "G"))*1
+        Int? memoryGb = 2 + ceil(size(inputCollapsedFasta, "G"))*1
 	    String mirdeepModule
         #the files below rarely exceed 1-2gb 
         Int timeMinutes = 1 + ceil(size(inputHairpinFasta, "G")) * 30 + ceil(size(inputCollapsedFasta, "G")) * 90
@@ -15,8 +15,13 @@ task QuantifierSingleSample {
 
     command {
         set -e
-        module --ignore-cache load ${mirdeepModule}
         
+        module --ignore-cache load ${mirdeepModule}
+        mkdir -p "expression_analyses/expression_analyses_${outputPrefix}_test/"
+        #this command below breaks on execution nodes idk why
+        (cd "expression_analyses/expression_analyses_${outputPrefix}_test/" && python3 $EBROOTBOWTIE/bin/bowtie-build ${inputHairpinFasta} ./miRNA_precursor)
+        (ldd   $(which bowtie-build-l); ldd   $(which bowtie-build-s))
+        module --ignore-cache load ${mirdeepModule}
         quantifier.pl \
             -p "${inputHairpinFasta}" \
             -m "${inputMatureFasta}" \
@@ -104,7 +109,7 @@ task MergeQuantifierOutputs {
                             push(@counts,0)
                         }
                     };
-                    print join("\t",($ARGV,@counts))."\n";
+                    print join(",",(chomp($ARGV),@counts))."\n";
                 }' $i 
         done) | perl -wpe 's/^.*\/call-mergeOutputsQuantifier\/inputs\/[-\d]+\///g' > ~{outputPrefix}".collapsedcounts.log"
 
@@ -146,14 +151,20 @@ END
             echo ""
             echo "Readcounts for each read length after trimming for each sample. These should show a peak around miRNA length (22 bases)."
             
-            perl -wpe 'chomp;
+            perl -wne 'chomp;
                         $_="| ".$_." |\n";
-                        s/\t/ | /g;
+                        s/,/ | /g;
                         if($. == 1){
                             print $_ ;
                             s/\| .*\/\| /|/g;
                             s/\.md\.fa//g;
-                            s/[\w\\\/\.]+/---/g
+                            s/[\w\\\/\.]+/---/g;
+                            print $_
+
+                        }else{
+                            if( not(m/\| File\s*\|/) ){
+                                print $_;
+                            }
                         }' ~{outputPrefix}".collapsedcounts.log" | column -t -s\ 
         )>  ~{outputPrefix}".md"
         
