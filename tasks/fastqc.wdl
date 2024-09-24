@@ -37,7 +37,7 @@ task FastQCSample {
         set -e -o pipefail
         module load ~{fastqcModule}
         mkfifo ~{outputPrefix}.fq
-        zcat ~{sep=" " inputFastqGzs} > ~{outputPrefix}.fq &
+        cat ~{sep=" " inputFastqGzs} | gzip -dc > ~{outputPrefix}.fq &
         fastqc -o ./ ~{outputPrefix}.fq
     >>>
 
