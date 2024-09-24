@@ -132,3 +132,4 @@ dmypy.json
 cromwell-extensions/
 cromwell-workflow-logs/
 cromwell-executions/
+tests/runs/local/

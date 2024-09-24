@@ -120,6 +120,7 @@ workflow fastqQuantWorkflow {
     }
     call mirdeep.MergeQuantifierOutputs as mergeOutputsQuantifier {
         input:
+                inputFastqcZips = fastqcSample1.outZip,
                 inputLogs = quantify.outLog,
                 inputTsvs = quantify.outTsv,
                 inputCollapsedFasta = collapse.outputCollapsedFasta,

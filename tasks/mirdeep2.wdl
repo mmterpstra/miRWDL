@@ -58,6 +58,7 @@ task MergeQuantifierOutputs {
         Array[File] inputTsvs
         Array[File] inputLogs
         Array[File] inputCollapsedFasta
+        Array[File] inputFastqcZips
         String outputPrefix
         Int? memoryGb = 1
 	    #String mirdeepModule  = "mirdeep2/0.1.3-GCC-10.2.0-Perl-5.32.0"
@@ -85,7 +86,7 @@ task MergeQuantifierOutputs {
             perl  -wne '
                 BEGIN{our %lencounts;
                     our @h;
-                    our @lens=(1..151)};
+                    our @lens=("Total",1..151)};
                 if($.%2==1){ 
                     @h = split("_x",$_);
                 }else{
@@ -96,6 +97,11 @@ task MergeQuantifierOutputs {
                         $lencounts{length($_)}+=$count;
                     }else{
                         $lencounts{length($_)}=$count;
+                    }
+                    if(defined($lencounts{"Total"})){
+                        $lencounts{"Total"}+=$count;
+                    }else{
+                        $lencounts{"Total"}=$count;
                     }
                 }
                 END{
@@ -109,7 +115,8 @@ task MergeQuantifierOutputs {
                             push(@counts,0)
                         }
                     };
-                    print join(",",(chomp($ARGV),@counts))."\n";
+                    chomp($ARGV);
+                    print join(",",($ARGV,@counts))."\n";
                 }' $i 
         done) | perl -wpe 's/^.*\/call-mergeOutputsQuantifier\/inputs\/[-\d]+\///g' > ~{outputPrefix}".collapsedcounts.log"
 
@@ -146,6 +153,32 @@ task MergeQuantifierOutputs {
             > Friedländer MR, Mackowiak SD, Li N, Chen W, Rajewsky N. miRDeep2 accurately identifies known and hundreds of novel microRNA genes in seven animal clades. Nucleic Acids Res. 2012 Jan;40(1):37-52. doi: 10.1093/nar/gkr688. Epub 2011 Sep 12. PMID: 21911355; PMCID: PMC3245920.
 
 END
+
+            echo ""
+            echo "### Read counts input data"
+            echo ""
+            echo "For each sample the input reads."
+            echo ""
+            (echo -e "Sample\tReads";
+            for i in  ~{sep=" " inputFastqcZips}; do 
+                echo -ne "$(basename "$i" '_R1_fastqc.zip' )""\t"
+                unzip -p "$i"  \*/fastqc_data.txt | head -n 10 | perl -wne 'print if s/Total Sequences\s+//'
+            done)| \
+                perl -wpe 'chomp;
+                    s/^|$|\t|:/ | /g;
+                    s/ +/ /g;
+                    s/^ +| +$//g;
+                    if($. == 1){
+                        print $_."\n";
+                        s/\| .*\/\| /|/g;
+                        s/\.md\.fa//g;
+                        s/[^\s|]+/---/g;
+                    }
+                    $_.="\n";' | \
+                column -t -s\   
+            
+            echo ""
+
             echo ""
             echo "### Read length counts post trim"
             echo ""

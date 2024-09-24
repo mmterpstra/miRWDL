@@ -20,7 +20,7 @@ do
         # the location to store the (intermediate) files in and it should be accesable to the nodes it is being ran on (eg scratch)
         r) RUNROOT="$(realpath "${OPTARG}")";;
         # Location to be symlinked to the runroot for path abstraction
-        f) FASTQRAWDIRS="$(realpath "${OPTARG}")";;
+        f) FASTQRAWDIRS="${OPTARG}";;
         # location of the data excluding the /data at the end also for path abstraction. So '/path/to/datadir/' should contain './data/'
         d) DATADIR="$(realpath "${OPTARG}")";;
         # omit to default to "miRWDL.wdl"
@@ -46,13 +46,14 @@ ml purge
     fi
 
     #archive inputs.json
+    echo "## "$(date --iso-8601=min | perl -wpe 's/[\+\:]/_/g')"## $PWD $0 $@" >> $SAMPLESHEETFOLDER/${HOSTNAME}_mirwdl.log
     if [ ! -e "$RUNROOT/inputs.json" ]; then
         cp $INPUTJSON $RUNROOT/inputs.json
         cp $INPUTJSON $SAMPLESHEETFOLDER/${HOSTNAME}_$(basename $INPUTJSON)
     elif [ -e "$RUNROOT/inputs.json" ]; then
         mv $RUNROOT/inputs.json{,$(date --iso-8601=min | perl -wpe 's/[\+\:]/_/g').bak}
         cp $INPUTJSON $RUNROOT/inputs.json
-        echo "## "$(date --iso-8601=min | perl -wpe 's/[\+\:]/_/g')"## $PWD $0 $@" >> $SAMPLESHEETFOLDER/${HOSTNAME}_bestie.log
+        
         
         #echo $SAMPLESHEETFOLDER/${HOSTNAME}_$(basename $INPUTJSON){,$(date --iso-8601=min | perl -wpe 's/[\+\:]/_/g').bak}
         mv $SAMPLESHEETFOLDER/${HOSTNAME}_$(basename $INPUTJSON){,$(date --iso-8601=min | perl -wpe 's/[\+\:]/_/g').bak}
@@ -72,10 +73,10 @@ ml purge
     
     for FASTQRAWDIR in $(echo $FASTQRAWDIRS | tr , \ ); do
         if [ ! -e "$RUNROOT/raw/$(basename $FASTQRAWDIR)" ]; then
-            ln -s $FASTQRAWDIR $RUNROOT/raw
+            ln -s "$(realpath "$FASTQRAWDIR")" $RUNROOT/raw
         else 
-            unlink $RUNROOT/raw/$(basename $FASTQRAWDIR)
-            ln -s $FASTQRAWDIR $RUNROOT/raw
+            unlink $RUNROOT/raw/$(basename "$(realpath "$FASTQRAWDIR")")
+            ln -s "$(realpath "$FASTQRAWDIR")" $RUNROOT/raw
         fi
         # Now this should work for relative and complete paths for compatibility
         perl -i$(basename $FASTQRAWDIR).bak -wpe 's?'$FASTQRAWDIR'|./raw/'$(basename $FASTQRAWDIR)'?'$RUNROOT/raw/$(basename $FASTQRAWDIR)/'?g' $RUNROOT/sample.json
