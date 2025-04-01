@@ -8,6 +8,8 @@ task TrimGalore {
         String? outputFastq2
         Int? memoryGb = 1
         Int timeMinutes = 1 + ceil(size(inputFastq1, "G")) * 50
+        #outputReadLength defaults to 20 fir miRNA better hardcode this
+        Int outputReadLength = 15
         #File? fastq_input_umi
         #String samplename
         #String identifier
@@ -17,13 +19,19 @@ task TrimGalore {
         set -e 
         module load ${trimgaloreModule} && \
         if [ "${inputFastq2}x" == "x" ];then \
-            trim_galore "${inputFastq1}" \
-                --output_dir "$(basename $(basename ${outputFastq1} .fastq.gz) .fq.gz)"
-                ln -sf $PWD/$(basename $(basename ${outputFastq1} .fastq.gz) .fq.gz)/$(basename $(basename ${inputFastq1} .fastq.gz) .fq.gz)_trimmed.fq.gz ${outputFastq1}
-                ln -sf $PWD/$(basename $(basename ${outputFastq1} .fastq.gz) .fq.gz)/$(basename ${inputFastq1} )"_trimming_report.txt" ${outputFastq1}"_trimming_report.txt"
+            trim_galore \
+            "${inputFastq1}" \
+            --length "${outputReadLength}" \
+            --output_dir "$(basename $(basename ${outputFastq1} .fastq.gz) .fq.gz)"
+            
+            ln -sf $PWD/$(basename $(basename ${outputFastq1} .fastq.gz) .fq.gz)/$(basename $(basename ${inputFastq1} .fastq.gz) .fq.gz)_trimmed.fq.gz ${outputFastq1}
+            ln -sf $PWD/$(basename $(basename ${outputFastq1} .fastq.gz) .fq.gz)/$(basename ${inputFastq1} )"_trimming_report.txt" ${outputFastq1}"_trimming_report.txt"
         else \
-            trim_galore --paired "${inputFastq1}" "${inputFastq2}" \
-              --output_dir "$(basename $(basename ${outputFastq1} .fastq.gz) .fq.gz)" 
+            trim_galore \
+            --paired "${inputFastq1}" "${inputFastq2}" \
+            --length "${outputReadLength}" \
+            --output_dir "$(basename $(basename ${outputFastq1} .fastq.gz) .fq.gz)" 
+            
             ln -sf $PWD/$(basename $(basename ${outputFastq1} .fastq.gz) .fq.gz)/$(basename $(basename ${inputFastq1} .fastq.gz) .fq.gz)_val_1.fq.gz ${outputFastq1}
             ln -sf $PWD/$(basename $(basename ${outputFastq1} .fastq.gz) .fq.gz)/$(basename ${inputFastq1} )"_trimming_report.txt" ${outputFastq1}"_trimming_report.txt"
             ln -sf $PWD/$(basename $(basename ${outputFastq1} .fastq.gz) .fq.gz)/$(basename $(basename ${inputFastq2} .fastq.gz) .fq.gz)_val_2.fq.gz ${outputFastq2}

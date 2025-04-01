@@ -102,7 +102,7 @@ workflow fastqQuantWorkflow {
         call common.CollapseFastq as collapse {
             input:
                 reads = adaptertrim.fastq1,
-                nextflex = true,
+                nextflex = false,
                 outputPrefix = sample.name,
                 threeLetterName = sample.threeLetterName
         }
@@ -123,6 +123,7 @@ workflow fastqQuantWorkflow {
                 inputFastqcZips = fastqcSample1.outZip,
                 inputLogs = quantify.outLog,
                 inputTsvs = quantify.outTsv,
+                inputArf = quantify.outArf,
                 inputCollapsedFasta = collapse.outputCollapsedFasta,
                 outputPrefix = "quantifier_final"
     }
